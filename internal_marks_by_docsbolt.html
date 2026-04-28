@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CU Internal Marks Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+<style>
+:root {
+  --bg:#0a0a0f; --surface:#111118; --card:#16161f; --border:#252535;
+  --accent-red:#e02020; --accent-orange:#ff6b2b; --accent-yellow:#ffd166;
+  --accent-green:#06d6a0; --accent-blue:#4cc9f0; --accent-purple:#c77dff;
+  --text:#f0f0f8; --muted:#6b6b8a; --soft:#9999bb;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(224,32,32,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(224,32,32,0.03) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none;z-index:0;}
+.wrapper{position:relative;z-index:1;}
+
+/* HEADER */
+header{padding:2rem 1.25rem 1.5rem;text-align:center;border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg,rgba(224,32,32,0.06) 0%,transparent 100%);}
+.logo-badge{display:inline-flex;align-items:center;gap:0.4rem;background:var(--accent-red);color:white;
+  font-family:'Syne',sans-serif;font-weight:800;font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;
+  padding:0.3rem 0.8rem;border-radius:2px;margin-bottom:1rem;}
+h1{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(1.5rem,6vw,2.8rem);line-height:1.1;letter-spacing:-0.02em;}
+h1 span{color:var(--accent-red);}
+.subtitle{margin-top:0.5rem;color:var(--muted);font-size:0.72rem;}
+
+/* SELECTOR */
+.selector-section{padding:2rem 1rem;max-width:860px;margin:0 auto;}
+.section-label{font-family:'Syne',sans-serif;font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--muted);margin-bottom:0.9rem;}
+.subject-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;}
+@media(max-width:500px){.subject-cards{grid-template-columns:1fr;}}
+.subject-card{border:1.5px solid var(--border);border-radius:8px;padding:1.2rem;cursor:pointer;transition:all 0.2s;background:var(--card);position:relative;overflow:hidden;}
+.subject-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;opacity:0;transition:opacity 0.2s;}
+.subject-card:hover{transform:translateY(-2px);}
+.subject-card.active::before{opacity:1;}
+.card-theory::before{background:var(--accent-blue);}
+.card-theory.active{border-color:var(--accent-blue);box-shadow:0 0 0 1px var(--accent-blue),0 8px 28px rgba(76,201,240,0.12);}
+.card-practical::before{background:var(--accent-green);}
+.card-practical.active{border-color:var(--accent-green);box-shadow:0 0 0 1px var(--accent-green),0 8px 28px rgba(6,214,160,0.12);}
+.card-hybrid::before{background:var(--accent-orange);}
+.card-hybrid.active{border-color:var(--accent-orange);box-shadow:0 0 0 1px var(--accent-orange),0 8px 28px rgba(255,107,43,0.12);}
+.card-icon{font-size:1.4rem;margin-bottom:0.6rem;}
+.card-title{font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;margin-bottom:0.25rem;}
+.card-desc{font-size:0.68rem;color:var(--muted);line-height:1.4;}
+.card-total{margin-top:0.7rem;font-size:0.65rem;font-weight:500;letter-spacing:0.07em;padding:0.2rem 0.5rem;border-radius:3px;display:inline-block;}
+.card-theory .card-total{background:rgba(76,201,240,0.12);color:var(--accent-blue);}
+.card-practical .card-total{background:rgba(6,214,160,0.12);color:var(--accent-green);}
+.card-hybrid .card-total{background:rgba(255,107,43,0.12);color:var(--accent-orange);}
+
+/* OCR UPLOAD ZONE */
+.ocr-zone{background:var(--card);border:1.5px dashed var(--border);border-radius:10px;padding:1.4rem;margin-bottom:0.5rem;transition:border-color 0.2s;}
+.ocr-zone:hover{border-color:var(--soft);}
+.ocr-top-row{display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;}
+.ocr-icon{font-size:1.5rem;flex-shrink:0;}
+.ocr-text-block{flex:1;min-width:0;}
+.ocr-title{font-family:'Syne',sans-serif;font-weight:700;font-size:0.85rem;color:var(--text);margin-bottom:0.2rem;}
+.ocr-subtitle{font-size:0.65rem;color:var(--muted);line-height:1.5;}
+.ocr-warn{display:inline-block;margin-top:0.4rem;font-size:0.6rem;background:rgba(255,209,102,0.1);color:var(--accent-yellow);
+  border:1px solid rgba(255,209,102,0.25);padding:0.2rem 0.5rem;border-radius:3px;letter-spacing:0.05em;}
+.ocr-btn-label{display:inline-flex;align-items:center;gap:0.4rem;background:var(--surface);
+  border:1px solid var(--border);color:var(--soft);
+  font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;letter-spacing:0.08em;
+  padding:0.6rem 1.2rem;border-radius:4px;cursor:pointer;transition:all 0.2s;white-space:nowrap;flex-shrink:0;}
+.ocr-btn-label:hover{border-color:var(--soft);color:var(--text);}
+.ocr-btn-label input{display:none;}
+
+/* OCR STATUS */
+.ocr-status{margin-top:1rem;display:none;}
+.ocr-status.visible{display:block;}
+.ocr-progress-bar-wrap{background:var(--border);border-radius:4px;height:5px;overflow:hidden;margin-bottom:0.6rem;}
+.ocr-progress-bar{height:100%;width:0%;background:var(--accent-yellow);border-radius:4px;transition:width 0.3s ease;}
+.ocr-status-text{font-size:0.68rem;color:var(--muted);}
+.ocr-status-text span{color:var(--accent-yellow);}
+
+/* OCR RESULT SUMMARY */
+.ocr-summary{margin-top:0.9rem;background:var(--surface);border-radius:6px;padding:0.8rem;display:none;}
+.ocr-summary.visible{display:block;}
+.ocr-summary-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;}
+.ocr-chips{display:flex;gap:0.4rem;flex-wrap:wrap;}
+.ocr-chip{font-size:0.62rem;padding:0.18rem 0.5rem;border-radius:3px;}
+.chip-green{background:rgba(6,214,160,0.12);color:var(--accent-green);}
+.chip-yellow{background:rgba(255,209,102,0.12);color:var(--accent-yellow);}
+.ocr-clear-btn{font-size:0.62rem;color:var(--muted);background:none;border:none;cursor:pointer;text-decoration:underline;}
+.ocr-clear-btn:hover{color:var(--text);}
+
+/* AUTO-FILLED FIELD HIGHLIGHT */
+.marks-input.auto-filled{border-color:var(--accent-yellow)!important;background:rgba(255,209,102,0.05);}
+.auto-tag{font-size:0.58rem;color:var(--accent-yellow);margin-top:0.25rem;}
+
+/* CALC SECTION */
+.calc-section{max-width:860px;margin:0 auto;padding:0 1rem 4rem;display:none;animation:slideUp 0.3s ease;}
+.calc-section.visible{display:block;}
+@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.divider{border:none;border-top:1px solid var(--border);margin-bottom:2rem;}
+.group-title{font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;letter-spacing:0.15em;text-transform:uppercase;
+  color:var(--soft);margin:1.8rem 0 0.9rem;display:flex;align-items:center;gap:0.6rem;}
+.group-title::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* FIELDS */
+.fields-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:0.65rem;}
+@media(max-width:480px){.fields-grid{grid-template-columns:1fr;}}
+.field{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:0.9rem;transition:border-color 0.2s;}
+.field:focus-within{border-color:var(--soft);}
+.field-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.6rem;}
+.field-name{font-family:'Syne',sans-serif;font-weight:600;font-size:0.78rem;color:var(--text);line-height:1.3;max-width:62%;}
+.field-meta{text-align:right;font-size:0.62rem;color:var(--muted);line-height:1.6;}
+.field-meta strong{display:block;color:var(--soft);font-size:0.68rem;}
+.input-row{display:flex;align-items:center;gap:0.45rem;}
+.marks-input{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);
+  font-family:'DM Mono',monospace;font-size:0.95rem;padding:0.4rem 0.6rem;outline:none;transition:border-color 0.2s,background 0.2s;width:100%;min-width:0;}
+.marks-input:focus{border-color:var(--accent-blue);}
+.marks-input.error{border-color:var(--accent-red)!important;background:rgba(224,32,32,0.05)!important;}
+.out-of{font-size:0.7rem;color:var(--muted);white-space:nowrap;}
+.weighted-preview{font-size:0.67rem;color:var(--muted);margin-top:0.35rem;min-height:14px;transition:color 0.2s;}
+.weighted-preview.has-val{color:var(--accent-green);}
+
+.experiments-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:0.55rem;}
+@media(max-width:480px){.experiments-grid{grid-template-columns:repeat(2,1fr);}}
+.exp-field{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:0.7rem;transition:border-color 0.2s;}
+.exp-field:focus-within{border-color:var(--soft);}
+.exp-label{font-size:0.68rem;color:var(--soft);margin-bottom:0.45rem;font-family:'Syne',sans-serif;font-weight:600;line-height:1.3;}
+
+/* BUTTONS */
+.calc-btn-wrap{margin-top:2rem;text-align:center;display:flex;justify-content:center;gap:0.75rem;flex-wrap:wrap;}
+.calc-btn{background:var(--accent-red);color:white;border:none;font-family:'Syne',sans-serif;font-weight:700;
+  font-size:0.85rem;letter-spacing:0.1em;text-transform:uppercase;padding:0.85rem 2.5rem;border-radius:4px;cursor:pointer;transition:all 0.2s;}
+.calc-btn:hover{background:#ff2d2d;transform:translateY(-2px);box-shadow:0 8px 24px rgba(224,32,32,0.35);}
+.reset-btn{background:transparent;color:var(--muted);border:1px solid var(--border);font-family:'Syne',sans-serif;
+  font-weight:600;font-size:0.82rem;letter-spacing:0.08em;padding:0.85rem 1.8rem;border-radius:4px;cursor:pointer;transition:all 0.2s;}
+.reset-btn:hover{border-color:var(--soft);color:var(--text);}
+
+/* RESULT */
+.result-panel{margin-top:2rem;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:none;animation:slideUp 0.4s ease;}
+.result-panel.visible{display:block;}
+.result-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0.5rem;}
+.result-header h3{font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;letter-spacing:0.1em;text-transform:uppercase;}
+.top-score-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:1.25rem;border-bottom:1px solid var(--border);}
+@media(max-width:400px){.top-score-row{grid-template-columns:1fr;}}
+.score-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.25rem;text-align:center;}
+.box-label{font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;}
+.score-number{font-family:'Syne',sans-serif;font-weight:800;font-size:2.4rem;line-height:1;}
+.score-outof{font-size:0.8rem;color:var(--muted);margin-top:0.3rem;}
+.skipped-note{font-size:0.63rem;color:var(--accent-yellow);margin-top:0.5rem;}
+.ring-wrap{display:flex;flex-direction:column;align-items:center;gap:0.5rem;}
+.ring-svg-box{width:130px;height:130px;flex-shrink:0;}
+.ring-svg-box svg{width:130px;height:130px;}
+.breakdown-wrap{padding:1.25rem;border-bottom:1px solid var(--border);}
+.breakdown-title{font-family:'Syne',sans-serif;font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;}
+.breakdown-scroll{overflow-x:auto;}
+.breakdown-table{width:100%;border-collapse:collapse;font-size:0.75rem;min-width:320px;}
+.breakdown-table th{text-align:left;padding:0.45rem 0.7rem;background:var(--surface);color:var(--muted);
+  font-size:0.58rem;letter-spacing:0.1em;text-transform:uppercase;border-bottom:1px solid var(--border);}
+.breakdown-table td{padding:0.5rem 0.7rem;border-bottom:1px solid rgba(37,37,53,0.5);color:var(--soft);}
+.breakdown-table tr:last-child td{border-bottom:none;}
+.breakdown-table td:nth-child(2),.breakdown-table td:nth-child(3),.breakdown-table td:nth-child(4){text-align:center;}
+.td-earned{color:var(--accent-yellow)!important;font-weight:500;}
+.td-name{color:var(--text)!important;}
+.total-row td{border-top:1px solid var(--border)!important;color:var(--text)!important;font-weight:700;font-family:'Syne',sans-serif;font-size:0.78rem;padding-top:0.7rem;}
+
+/* END TERM */
+.end-term-section{padding:1.25rem;}
+.end-term-header{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.9rem;}
+.end-term-badge{font-size:0.58rem;letter-spacing:0.12em;text-transform:uppercase;background:rgba(199,125,255,0.12);
+  color:var(--accent-purple);padding:0.2rem 0.5rem;border-radius:3px;font-family:'Syne',sans-serif;font-weight:700;}
+.end-term-label{font-family:'Syne',sans-serif;font-weight:700;font-size:0.8rem;}
+.end-term-note{font-size:0.65rem;color:var(--muted);margin-bottom:1rem;line-height:1.5;}
+.end-term-row{display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;}
+.end-inp-wrap{display:flex;align-items:center;gap:0.4rem;background:var(--surface);border:1px solid var(--border);
+  border-radius:6px;padding:0.5rem 0.75rem;transition:border-color 0.2s;flex:1;min-width:180px;}
+.end-inp-wrap:focus-within{border-color:var(--accent-purple);}
+.end-inp-label{font-size:0.68rem;color:var(--muted);white-space:nowrap;}
+.end-inp{background:transparent;border:none;outline:none;color:var(--text);font-family:'DM Mono',monospace;font-size:0.95rem;width:70px;min-width:0;}
+.end-calc-btn{background:var(--accent-purple);color:white;border:none;font-family:'Syne',sans-serif;font-weight:700;
+  font-size:0.75rem;letter-spacing:0.08em;padding:0.6rem 1.4rem;border-radius:4px;cursor:pointer;transition:all 0.2s;}
+.end-calc-btn:hover{opacity:0.85;transform:translateY(-1px);}
+.end-result{margin-top:1.1rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.1rem;display:none;}
+.end-result.visible{display:block;}
+.end-result-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;text-align:center;margin-bottom:0.9rem;}
+@media(max-width:400px){.end-result-grid{grid-template-columns:1fr 1fr;}}
+.end-stat-label{font-size:0.56rem;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.3rem;}
+.end-stat-val{font-family:'Syne',sans-serif;font-weight:800;font-size:1.5rem;line-height:1;}
+.end-stat-sub{font-size:0.62rem;color:var(--muted);margin-top:0.2rem;}
+.grade-big{font-family:'Syne',sans-serif;font-weight:800;font-size:2.2rem;text-align:center;padding:0.6rem;letter-spacing:0.05em;}
+.predicted-note{font-size:0.63rem;color:var(--muted);padding:0.6rem 0.8rem;margin-top:0.8rem;
+  background:rgba(255,209,102,0.06);border-left:2px solid var(--accent-yellow);border-radius:0 4px 4px 0;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+<header>
+  <div class="logo-badge">🎓 Chandigarh University</div>
+  <h1>Internal Marks <span>Calculator</span></h1>
+  <p class="subtitle">// Auto-scan mark sheet · Edit freely · Get weighted score</p>
+</header>
+
+<section class="selector-section">
+  <div class="section-label">01 — Choose your subject type</div>
+  <div class="subject-cards">
+    <div class="subject-card card-theory" onclick="selectType('theory',this)">
+      <div class="card-icon">📘</div>
+      <div class="card-title">Theory</div>
+      <div class="card-desc">MSTs, assignment, quiz &amp; surprise test</div>
+      <div class="card-total">INTERNAL = 40</div>
+    </div>
+    <div class="subject-card card-practical" onclick="selectType('practical',this)">
+      <div class="card-icon">🔬</div>
+      <div class="card-title">Practical</div>
+      <div class="card-desc">10 experiments + mid-term test</div>
+      <div class="card-total">INTERNAL = 60</div>
+    </div>
+    <div class="subject-card card-hybrid" onclick="selectType('hybrid',this)">
+      <div class="card-icon">⚗️</div>
+      <div class="card-title">Hybrid</div>
+      <div class="card-desc">Practical eval, worksheets, MSTs &amp; more</div>
+      <div class="card-total">INTERNAL = 70</div>
+    </div>
+  </div>
+</section>
+
+<!-- THEORY -->
+<section class="calc-section" id="calc-theory">
+  <hr class="divider">
+  <div class="section-label">02 — Theory · Internal out of 40</div>
+  <div id="ocr-zone-theory"></div>
+  <div class="group-title">All Components</div>
+  <div class="fields-grid" id="theory-fields"></div>
+  <div class="calc-btn-wrap">
+    <button class="calc-btn" onclick="calculate('theory')">⚡ Calculate</button>
+    <button class="reset-btn" onclick="resetForm('theory')">Reset</button>
+  </div>
+  <div class="result-panel" id="result-theory">
+    <div class="result-header"><span>📊</span><h3>Theory — Internal Result</h3></div>
+    <div class="top-score-row" id="top-theory"></div>
+    <div class="breakdown-wrap">
+      <div class="breakdown-title">Component Breakdown</div>
+      <div class="breakdown-scroll"><table class="breakdown-table" id="table-theory"></table></div>
+    </div>
+    <div class="end-term-section" id="endterm-theory"></div>
+  </div>
+</section>
+
+<!-- PRACTICAL -->
+<section class="calc-section" id="calc-practical">
+  <hr class="divider">
+  <div class="section-label">02 — Practical · Internal out of 60</div>
+  <div id="ocr-zone-practical"></div>
+  <div class="group-title">Experiments (each /30 → weighted 4.5)</div>
+  <div class="experiments-grid" id="practical-exp-fields"></div>
+  <div class="group-title">Mid-Term Test</div>
+  <div class="fields-grid" id="practical-other-fields"></div>
+  <div class="calc-btn-wrap">
+    <button class="calc-btn" onclick="calculate('practical')">⚡ Calculate</button>
+    <button class="reset-btn" onclick="resetForm('practical')">Reset</button>
+  </div>
+  <div class="result-panel" id="result-practical">
+    <div class="result-header"><span>📊</span><h3>Practical — Internal Result</h3></div>
+    <div class="top-score-row" id="top-practical"></div>
+    <div class="breakdown-wrap">
+      <div class="breakdown-title">Component Breakdown</div>
+      <div class="breakdown-scroll"><table class="breakdown-table" id="table-practical"></table></div>
+    </div>
+    <div class="end-term-section" id="endterm-practical"></div>
+  </div>
+</section>
+
+<!-- HYBRID -->
+<section class="calc-section" id="calc-hybrid">
+  <hr class="divider">
+  <div class="section-label">02 — Hybrid · Internal out of 70</div>
+  <div id="ocr-zone-hybrid"></div>
+  <div class="group-title">Core Assessments</div>
+  <div class="fields-grid" id="hybrid-main-fields"></div>
+  <div class="group-title">Practical Worksheets / Projects (each /30 → weighted 2)</div>
+  <div class="experiments-grid" id="hybrid-worksheet-fields"></div>
+  <div class="calc-btn-wrap">
+    <button class="calc-btn" onclick="calculate('hybrid')">⚡ Calculate</button>
+    <button class="reset-btn" onclick="resetForm('hybrid')">Reset</button>
+  </div>
+  <div class="result-panel" id="result-hybrid">
+    <div class="result-header"><span>📊</span><h3>Hybrid — Internal Result</h3></div>
+    <div class="top-score-row" id="top-hybrid"></div>
+    <div class="breakdown-wrap">
+      <div class="breakdown-title">Component Breakdown</div>
+      <div class="breakdown-scroll"><table class="breakdown-table" id="table-hybrid"></table></div>
+    </div>
+    <div class="end-term-section" id="endterm-hybrid"></div>
+  </div>
+</section>
+
+</div><!-- /wrapper -->
+<script>
+// ─────────────────────────────────────────────
+//  DATA
+// ─────────────────────────────────────────────
+const THEORY_COMPONENTS=[
+  {id:'t1',name:'Assignment / PBL',     max:10,weighted:10},
+  {id:'t2',name:'Attendance Marks',      max:2, weighted:2 },
+  {id:'t3',name:'Mid-Semester Test-1',   max:20,weighted:10},
+  {id:'t4',name:'Quiz',                  max:4, weighted:4 },
+  {id:'t5',name:'Surprise Test',         max:12,weighted:4 },
+  {id:'t6',name:'Mid-Semester Test-2',   max:20,weighted:10},
+];
+const THEORY_TOTAL=40,THEORY_END={max:60,weighted:60,label:'End Term Theory Exam'};
+
+const PRACTICAL_EXPERIMENTS=Array.from({length:10},(_,i)=>({id:`p_exp${i+1}`,name:`Experiment-${i+1}`,max:30,weighted:4.5}));
+const PRACTICAL_OTHER=[{id:'p_mtt',name:'Mid-Term Test',max:15,weighted:15}];
+const PRACTICAL_TOTAL=60,PRACTICAL_END={max:40,weighted:40,label:'External Viva / Voce'};
+
+const HYBRID_MAIN=[
+  {id:'h1',name:'Practical Evaluations', max:40,weighted:20},
+  {id:'h2',name:'Attendance Marks',       max:2, weighted:2 },
+  {id:'h3',name:'Surprise Test',          max:12,weighted:4 },
+  {id:'h4',name:'Practical MST',          max:10,weighted:4 },
+  {id:'h5',name:'Quiz',                   max:4, weighted:4 },
+  {id:'h6',name:'Assignment / PBL',       max:10,weighted:6 },
+  {id:'h7',name:'MST-1 Hybrid',           max:20,weighted:5 },
+  {id:'h8',name:'MST-2 Hybrid',           max:20,weighted:5 },
+];
+const HYBRID_WORKSHEETS=Array.from({length:10},(_,i)=>({id:`h_ws${i+1}`,name:`Worksheet/Project ${i+1}`,max:30,weighted:2}));
+const HYBRID_TOTAL=70,HYBRID_END={max:60,weighted:30,label:'End Term Theory Exam'};
+
+const storedInternal={theory:null,practical:null,hybrid:null};
+
+// ─────────────────────────────────────────────
+//  OCR — keyword mapping per type
+//  Each entry: { id, keywords[], max }
+//  keywords are lowercased regex strings
+// ─────────────────────────────────────────────
+function getOcrMap(type){
+  if(type==='theory') return [
+    {id:'t1', max:10,  keys:['assignment','pbl']},
+    {id:'t2', max:2,   keys:['attendance']},
+    {id:'t3', max:20,  keys:['mid.?semester.?test.?1','mst.?1','mid.?sem.?1']},
+    {id:'t4', max:4,   keys:['quiz']},
+    {id:'t5', max:12,  keys:['surprise']},
+    {id:'t6', max:20,  keys:['mid.?semester.?test.?2','mst.?2','mid.?sem.?2']},
+  ];
+  if(type==='practical') return [
+    ...Array.from({length:10},(_,i)=>({id:`p_exp${i+1}`,max:30,keys:[`experiment.?${i+1}`,`exp.?${i+1}`]})),
+    {id:'p_mtt',max:15,keys:['mid.?term','midterm']},
+  ];
+  // hybrid
+  return [
+    {id:'h1', max:40, keys:['practical.?eval','pract.*eval']},
+    {id:'h2', max:2,  keys:['attendance']},
+    {id:'h3', max:12, keys:['surprise']},
+    {id:'h4', max:10, keys:['practical.?mst','pract.*mst']},
+    {id:'h5', max:4,  keys:['quiz']},
+    {id:'h6', max:10, keys:['assignment','pbl']},
+    {id:'h7', max:20, keys:['mst.?1','mst-1','mid.*sem.*test.*1']},
+    {id:'h8', max:20, keys:['mst.?2','mst-2','mid.*sem.*test.*2']},
+    ...Array.from({length:10},(_,i)=>({id:`h_ws${i+1}`,max:30,keys:[
+      `worksheet\\s*/?\\s*project\\s*${i+1}`,
+      `worksheet\\s*/?\\s*projects?\\s*${i+1}`,
+      `practical\\s+worksheet\\s*/?\\s*project\\s*${i+1}`,
+      `practical\\s+worksheet\\s*/?\\s*projects?\\s*${i+1}`,
+      `practical\\s+worksheet\\s*${i+1}`,
+      `practical\\s+project\\s*${i+1}`,
+      `practical\\s+projects?\\s*${i+1}`,
+      `worksheet.?${i+1}`,
+      `project.?${i+1}`,
+      `projects?\\s*${i+1}`,
+      `ws.?${i+1}`
+    ]})),
+  ];
+}
+
+// ─────────────────────────────────────────────
+//  BUILD OCR ZONE HTML
+// ─────────────────────────────────────────────
+function buildOcrZone(type){
+  document.getElementById(`ocr-zone-${type}`).innerHTML=`
+    <div class="ocr-zone">
+      <div class="ocr-top-row">
+        <div class="ocr-icon">🔍</div>
+        <div class="ocr-text-block">
+          <div class="ocr-title">Auto-Scan Mark Sheet <span style="color:var(--muted);font-size:0.7rem;font-weight:400">(Optional)</span></div>
+          <div class="ocr-subtitle">Upload a photo or screenshot of your internal marks sheet.<br>Fields detected will be filled automatically — you can edit anything.</div>
+          <div class="ocr-warn">⚠ Image is NOT stored anywhere · OCR may not be accurate · Always verify</div>
+        </div>
+        <label class="ocr-btn-label">
+          📷 Upload Image
+          <input type="file" accept="image/*" onchange="handleOcrUpload(event,'${type}')">
+        </label>
+      </div>
+      <div class="ocr-status" id="ocr-status-${type}">
+        <div class="ocr-progress-bar-wrap"><div class="ocr-progress-bar" id="ocr-bar-${type}"></div></div>
+        <div class="ocr-status-text" id="ocr-status-text-${type}">Starting OCR engine…</div>
+      </div>
+      <div class="ocr-summary" id="ocr-summary-${type}"></div>
+    </div>`;
+}
+
+// ─────────────────────────────────────────────
+//  FIELD BUILDERS
+// ─────────────────────────────────────────────
+function buildField(c){
+  return`<div class="field" id="wrap-${c.id}">
+    <div class="field-header">
+      <div class="field-name">${c.name}</div>
+      <div class="field-meta"><strong>Max: ${c.max}</strong>Wtd: ${c.weighted}</div>
+    </div>
+    <div class="input-row">
+      <input type="number" class="marks-input" id="inp-${c.id}" min="0" max="${c.max}" step="0.5" placeholder="0"
+        oninput="pw('${c.id}',${c.max},${c.weighted})">
+      <span class="out-of">/ ${c.max}</span>
+    </div>
+    <div class="weighted-preview" id="prev-${c.id}">— pts</div>
+  </div>`;
+}
+function buildExpField(c){
+  return`<div class="exp-field" id="wrap-${c.id}">
+    <div class="exp-label">${c.name}<br><span style="color:var(--muted);font-size:0.6rem">Wtd ${c.weighted} / ${c.max}</span></div>
+    <div class="input-row">
+      <input type="number" class="marks-input" id="inp-${c.id}" min="0" max="${c.max}" step="0.5" placeholder="0"
+        oninput="pw('${c.id}',${c.max},${c.weighted});removeAutoTag('${c.id}')">
+      <span class="out-of">/ ${c.max}</span>
+    </div>
+    <div class="weighted-preview" id="prev-${c.id}">—</div>
+  </div>`;
+}
+
+// Render all fields + OCR zones
+['theory','practical','hybrid'].forEach(t=>buildOcrZone(t));
+document.getElementById('theory-fields').innerHTML=THEORY_COMPONENTS.map(buildField).join('');
+document.getElementById('practical-exp-fields').innerHTML=PRACTICAL_EXPERIMENTS.map(buildExpField).join('');
+document.getElementById('practical-other-fields').innerHTML=PRACTICAL_OTHER.map(buildField).join('');
+document.getElementById('hybrid-main-fields').innerHTML=HYBRID_MAIN.map(buildField).join('');
+document.getElementById('hybrid-worksheet-fields').innerHTML=HYBRID_WORKSHEETS.map(buildExpField).join('');
+
+// ─────────────────────────────────────────────
+//  LIVE PREVIEW
+// ─────────────────────────────────────────────
+function pw(id,max,weighted){
+  const inp=document.getElementById('inp-'+id);
+  const prev=document.getElementById('prev-'+id);
+  const val=parseFloat(inp.value);
+  inp.classList.remove('auto-filled');                       // user edited → remove highlight
+  removeAutoTag(id);
+  if(isNaN(val)||inp.value===''){prev.textContent='— pts';prev.classList.remove('has-val');inp.classList.remove('error');return;}
+  if(val<0||val>max){inp.classList.add('error');prev.textContent=`⚠ 0–${max}`;prev.classList.remove('has-val');return;}
+  inp.classList.remove('error');
+  prev.textContent=`→ ${((val/max)*weighted).toFixed(2)} pts`;
+  prev.classList.add('has-val');
+}
+function removeAutoTag(id){
+  const t=document.getElementById('auto-tag-'+id);
+  if(t)t.remove();
+}
+
+// ─────────────────────────────────────────────
+//  OCR HANDLER
+// ─────────────────────────────────────────────
+function waitForTesseract(timeoutMs=8000){
+  return new Promise((resolve,reject)=>{
+    if(window.Tesseract)return resolve(window.Tesseract);
+
+    const started=Date.now();
+    const timer=setInterval(()=>{
+      if(window.Tesseract){
+        clearInterval(timer);
+        resolve(window.Tesseract);
+        return;
+      }
+
+      if(Date.now()-started>=timeoutMs){
+        clearInterval(timer);
+        reject(new Error('Tesseract.js did not load. Check your internet connection or CDN access.'));
+      }
+    },100);
+  });
+}
+
+async function handleOcrUpload(event,type){
+  const file=event.target.files[0];
+  if(!file)return;
+
+  // Create temp object URL — revoked immediately after use
+  const url=URL.createObjectURL(file);
+
+  const statusEl=document.getElementById(`ocr-status-${type}`);
+  const barEl=document.getElementById(`ocr-bar-${type}`);
+  const textEl=document.getElementById(`ocr-status-text-${type}`);
+  const summaryEl=document.getElementById(`ocr-summary-${type}`);
+
+  statusEl.classList.add('visible');
+  summaryEl.classList.remove('visible');
+  barEl.style.width='0%';
+  textEl.innerHTML='Initialising OCR engine…';
+
+  try{
+    const tesseract=await waitForTesseract();
+    const result=await tesseract.recognize(url,'eng',{
+      logger:m=>{
+        if(m.status==='recognizing text'){
+          const p=Math.round(m.progress*100);
+          barEl.style.width=p+'%';
+          textEl.innerHTML=`Scanning image… <span>${p}%</span>`;
+        } else {
+          textEl.innerHTML=`<span>${m.status}</span>`;
+        }
+      }
+    });
+
+    // IMPORTANT: revoke URL immediately — image not retained anywhere
+    URL.revokeObjectURL(url);
+    event.target.value='';
+
+    barEl.style.width='100%';
+    textEl.innerHTML='<span>Done! Mapping detected values…</span>';
+
+    const rawText=result.data.text;
+    const filled=parseAndFill(rawText,type);
+
+    setTimeout(()=>{
+      statusEl.classList.remove('visible');
+      barEl.style.width='0%';
+      showOcrSummary(type,filled,summaryEl);
+    },600);
+
+  } catch(err){
+    URL.revokeObjectURL(url);
+    event.target.value='';
+    barEl.style.width='0%';
+    textEl.innerHTML=`<span style="color:var(--accent-red)">OCR failed — please enter marks manually.</span>`;
+    console.error(err);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  PARSE OCR TEXT → FILL FIELDS
+// ─────────────────────────────────────────────
+function parseAndFill(text,type){
+  const map=getOcrMap(type);
+  const lines=text.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  let filled=0,missed=0;
+
+  map.forEach(entry=>{
+    const inp=document.getElementById('inp-'+entry.id);
+    if(!inp)return;
+
+    // Search every line for a keyword match
+    for(let line of lines){
+      const lower=line.toLowerCase();
+      const matched=entry.keys.some(k=>new RegExp(k).test(lower));
+      if(!matched)continue;
+
+      const idx=lines.indexOf(line);
+      const valFromLine=extractValueForMatchedLine(lines,idx,entry.max);
+
+      if(valFromLine===null){
+        // Try next line
+        if(idx<lines.length-1){
+          const val=extractExplicitMarkValue(lines[idx+1],entry.max);
+          if(val!==null){ setAutoFill(inp,entry.id,val,entry.max,entry); filled++; return; }
+        }
+        missed++; return;
+      }
+
+      setAutoFill(inp,entry.id,valFromLine,entry.max,entry);
+      filled++;
+      return;
+    }
+    missed++;
+  });
+
+  if(type==='hybrid'){
+    const tableFilled=fillHybridColumnTable(lines);
+    const sectionFilled=fillHybridWorksheetProjectSection(lines);
+    filled+=tableFilled+sectionFilled;
+    missed=Math.max(0,missed-tableFilled-sectionFilled);
+  }
+
+  filled=map.filter(entry=>{
+    const input=document.getElementById('inp-'+entry.id);
+    return input&&input.value!=='';
+  }).length;
+  missed=Math.max(0,map.length-filled);
+
+  return{filled,missed,total:map.length};
+}
+
+function extractNumbers(str){
+  const matches=str.match(/\d+(\.\d+)?/g);
+  return matches?matches.map(Number):[];
+}
+
+function extractMarkValue(str,max){
+  const normalized=str
+    .replace(/[|]/g,'/')
+    .replace(/\s+/g,' ')
+    .trim();
+
+  const fractionRegex=/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/g;
+  let fractionMatch;
+  while((fractionMatch=fractionRegex.exec(normalized))!==null){
+    const obtained=Number(fractionMatch[1]);
+    const total=Number(fractionMatch[2]);
+    if(obtained>=0&&obtained<=max&&(total===max||total>=obtained)){
+      return obtained;
+    }
+  }
+
+  const marksObtainedMatch=normalized.match(/(?:marks?\s*(?:obtained|scored|secured)|obtained|scored|secured)\D{0,20}(\d+(?:\.\d+)?)/i);
+  if(marksObtainedMatch){
+    const val=Number(marksObtainedMatch[1]);
+    if(val>=0&&val<=max)return val;
+  }
+
+  const nums=extractNumbers(normalized);
+  return pickBestNumber(nums,max);
+}
+
+function extractValueForMatchedLine(lines,idx,max){
+  const line=lines[idx]||'';
+  const sameLineValue=extractTableRowValue(line,max);
+  if(sameLineValue!==null)return sameLineValue;
+
+  const explicitNearby=extractExplicitMarkValue(`${line} ${lines[idx+1]||''} ${lines[idx+2]||''}`,max);
+  if(explicitNearby!==null)return explicitNearby;
+
+  const nearbyNumbers=[];
+  for(let i=idx+1;i<Math.min(lines.length,idx+6);i++){
+    const numericLine=lines[i].replace(/\s+/g,' ').trim();
+    if(!/^\d+(?:\.\d+)?$/.test(numericLine))continue;
+    nearbyNumbers.push(Number(numericLine));
+    if(nearbyNumbers.length>=3)break;
+  }
+
+  const sameLineNums=extractNumbers(line);
+  if(sameLineNums.includes(max)&&nearbyNumbers[0]>=0&&nearbyNumbers[0]<=max){
+    return nearbyNumbers[0];
+  }
+
+  const maxIndex=nearbyNumbers.findIndex(n=>n===max);
+  if(maxIndex!==-1&&nearbyNumbers[maxIndex+1]>=0&&nearbyNumbers[maxIndex+1]<=max){
+    return nearbyNumbers[maxIndex+1];
+  }
+
+  if(nearbyNumbers.length>=2&&nearbyNumbers[0]===max&&nearbyNumbers[1]>=0&&nearbyNumbers[1]<=max){
+    return nearbyNumbers[1];
+  }
+
+  return null;
+}
+
+function extractTableRowValue(str,max){
+  const normalized=str
+    .replace(/[|]/g,'/')
+    .replace(/\s+/g,' ')
+    .trim();
+
+  const explicitValue=extractExplicitMarkValue(normalized,max);
+  if(explicitValue!==null)return explicitValue;
+
+  const nums=extractNumbers(normalized);
+  const maxIndex=nums.findIndex(n=>n===max);
+  if(maxIndex!==-1&&nums[maxIndex+1]>=0&&nums[maxIndex+1]<=max){
+    return nums[maxIndex+1];
+  }
+
+  if(nums.length>=2&&nums[nums.length-2]===max&&nums[nums.length-1]>=0&&nums[nums.length-1]<=max){
+    return nums[nums.length-1];
+  }
+
+  return null;
+}
+
+function extractExplicitMarkValue(str,max){
+  const normalized=str
+    .replace(/[|]/g,'/')
+    .replace(/\s+/g,' ')
+    .trim();
+
+  const fractionMatch=normalized.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
+  if(fractionMatch){
+    const obtained=Number(fractionMatch[1]);
+    const total=Number(fractionMatch[2]);
+    if(obtained>=0&&obtained<=max&&(total===max||total>=obtained))return obtained;
+  }
+
+  const marksObtainedMatch=normalized.match(/(?:marks?\s*(?:obtained|scored|secured)|obtained|scored|secured)\D{0,20}(\d+(?:\.\d+)?)/i);
+  if(marksObtainedMatch){
+    const val=Number(marksObtainedMatch[1]);
+    if(val>=0&&val<=max)return val;
+  }
+
+  return null;
+}
+
+function fillHybridWorksheetProjectSection(lines){
+  const headerIndex=lines.findIndex(line=>/practical.*worksheets?.*projects?|worksheets?.*projects?/i.test(line));
+  if(headerIndex===-1)return 0;
+
+  let filled=0;
+  let worksheetIndex=1;
+  for(let i=headerIndex+1;i<lines.length&&worksheetIndex<=10;i++){
+    const line=lines[i];
+    if(/mst|quiz|assignment|attendance|surprise|calculate|internal/i.test(line))break;
+
+    const explicitValue=extractExplicitMarkValue(line,30);
+    if(explicitValue===null)continue;
+
+    const input=document.getElementById(`inp-h_ws${worksheetIndex}`);
+    if(input&&!input.value){
+      setAutoFill(input,`h_ws${worksheetIndex}`,explicitValue,30);
+      filled++;
+    }
+    worksheetIndex++;
+  }
+  return filled;
+}
+
+function fillHybridColumnTable(lines){
+  const order=[
+    {id:'h3',max:12,label:'surprise'},
+    {id:'h4',max:10,label:'practical mst'},
+    ...Array.from({length:10},(_,i)=>({id:`h_ws${i+1}`,max:30,label:`worksheet ${i+1}`})),
+    {id:'h5',max:4,label:'quiz'},
+    {id:'h6',max:10,label:'assignment'},
+    {id:'h7',max:20,label:'mst 1'},
+    {id:'h8',max:20,label:'mst 2'},
+  ];
+  const expectedMax=order.map(row=>row.max);
+  const numericLines=lines
+    .map(line=>line.replace(/\s+/g,' ').trim())
+    .filter(line=>/^\d+(?:\.\d+)?$/.test(line))
+    .map(Number);
+
+  for(let start=0;start<=numericLines.length-(expectedMax.length*2);start++){
+    const maxColumn=numericLines.slice(start,start+expectedMax.length);
+    if(!maxColumn.every((n,i)=>n===expectedMax[i]))continue;
+
+    const obtainedColumn=numericLines.slice(start+expectedMax.length,start+(expectedMax.length*2));
+    if(obtainedColumn.length<expectedMax.length)continue;
+    if(!obtainedColumn.every((n,i)=>n>=0&&n<=expectedMax[i]))continue;
+
+    let filled=0;
+    order.forEach((row,i)=>{
+      const input=document.getElementById(`inp-${row.id}`);
+      if(input){
+        setAutoFill(input,row.id,obtainedColumn[i],row.max);
+        filled++;
+      }
+    });
+    return filled;
+  }
+
+  return 0;
+}
+
+function pickBestNumber(nums,max){
+  // Filter numbers that could be marks (0 to max), prefer the one ≤ max
+  // If max appears in list, take the one before/after
+  const candidates=nums.filter(n=>n>=0&&n<=max);
+  if(candidates.length===0)return null;
+  // If max mark itself shows up (e.g., "9 / 12"), take the smallest fitting number
+  // Heuristic: return the first candidate that isn't equal to max (obtained marks)
+  const obtained=candidates.filter(n=>n!==max);
+  return obtained.length>0?obtained[obtained.length-1]:candidates[candidates.length-1];
+}
+
+function setAutoFill(inp,id,val,max,entry){
+  // Determine weighted for preview
+  const allComps=[...THEORY_COMPONENTS,...PRACTICAL_EXPERIMENTS,...PRACTICAL_OTHER,...HYBRID_MAIN,...HYBRID_WORKSHEETS];
+  const comp=allComps.find(c=>c.id===id);
+  const weighted=comp?comp.weighted:0;
+
+  inp.value=val;
+  inp.classList.remove('error');
+  inp.classList.add('auto-filled');
+
+  // Weighted preview
+  const prev=document.getElementById('prev-'+id);
+  if(prev){
+    prev.textContent=`→ ${((val/max)*weighted).toFixed(2)} pts`;
+    prev.classList.add('has-val');
+  }
+
+  // Auto-tag
+  const existing=document.getElementById('auto-tag-'+id);
+  if(existing)existing.remove();
+  const tag=document.createElement('div');
+  tag.id='auto-tag-'+id;
+  tag.className='auto-tag';
+  tag.textContent='✦ Auto-detected — verify & edit if wrong';
+  inp.closest('.field,.exp-field').appendChild(tag);
+
+  // Remove auto-fill style on manual edit
+  inp.addEventListener('input',()=>{
+    inp.classList.remove('auto-filled');
+    const t=document.getElementById('auto-tag-'+id);
+    if(t)t.remove();
+  },{once:true});
+}
+
+function showOcrSummary(type,{filled,missed,total},el){
+  el.innerHTML=`
+    <div class="ocr-summary-row">
+      <div class="ocr-chips">
+        <span class="ocr-chip chip-green">✓ ${filled} fields auto-filled</span>
+        ${missed>0?`<span class="ocr-chip chip-yellow">⚠ ${missed} not detected — enter manually</span>`:''}
+      </div>
+      <button class="ocr-clear-btn" onclick="clearAutoFills('${type}',this)">Clear auto-fills</button>
+    </div>
+    <div style="font-size:0.6rem;color:var(--muted);margin-top:0.5rem">
+      Fields highlighted in <span style="color:var(--accent-yellow)">yellow</span> were auto-detected. Always verify — OCR can misread numbers.
+    </div>`;
+  el.classList.add('visible');
+}
+
+function clearAutoFills(type,btn){
+  const map=getOcrMap(type);
+  map.forEach(entry=>{
+    const inp=document.getElementById('inp-'+entry.id);
+    if(inp&&inp.classList.contains('auto-filled')){
+      inp.value='';
+      inp.classList.remove('auto-filled','error');
+      const prev=document.getElementById('prev-'+entry.id);
+      if(prev){prev.textContent='— pts';prev.classList.remove('has-val');}
+      removeAutoTag(entry.id);
+    }
+  });
+  btn.closest('.ocr-summary').classList.remove('visible');
+}
+
+// ─────────────────────────────────────────────
+//  SELECT TYPE
+// ─────────────────────────────────────────────
+function selectType(type,el){
+  document.querySelectorAll('.subject-card').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  ['theory','practical','hybrid'].forEach(t=>{
+    document.getElementById('calc-'+t).classList.remove('visible');
+    document.getElementById('result-'+t).classList.remove('visible');
+  });
+  document.getElementById('calc-'+type).classList.add('visible');
+  setTimeout(()=>document.getElementById('calc-'+type).scrollIntoView({behavior:'smooth',block:'start'}),50);
+}
+
+// ─────────────────────────────────────────────
+//  CALCULATE
+// ─────────────────────────────────────────────
+function calculate(type){
+  const components=type==='theory'?THEORY_COMPONENTS:type==='practical'?[...PRACTICAL_EXPERIMENTS,...PRACTICAL_OTHER]:[...HYBRID_MAIN,...HYBRID_WORKSHEETS];
+  const total=type==='theory'?THEORY_TOTAL:type==='practical'?PRACTICAL_TOTAL:HYBRID_TOTAL;
+  let hasError=false,rows=[],totalEarned=0;
+
+  components.forEach(c=>{
+    const inp=document.getElementById('inp-'+c.id);
+    const val=parseFloat(inp.value);
+    if(inp.value===''||isNaN(val)){rows.push({name:c.name,entered:'—',max:c.max,weighted:c.weighted,earned:0,skipped:true});return;}
+    if(val<0||val>c.max){inp.classList.add('error');hasError=true;return;}
+    inp.classList.remove('error');
+    const earned=(val/c.max)*c.weighted;
+    totalEarned+=earned;
+    rows.push({name:c.name,entered:val,max:c.max,weighted:c.weighted,earned:earned.toFixed(2),skipped:false});
+  });
+
+  if(hasError){alert('⚠️ Fix the red-highlighted fields first.');return;}
+  storedInternal[type]=parseFloat(totalEarned.toFixed(2));
+  const pct=((totalEarned/total)*100).toFixed(1);
+  const accent=accentFor(type);
+  const skipped=rows.filter(r=>r.skipped);
+
+  // Ring via inline SVG text
+  const R=46,CX=65,CY=65,circ=2*Math.PI*R;
+  const offset=(circ-(Math.min(parseFloat(pct),100)/100)*circ).toFixed(2);
+
+  document.getElementById('top-'+type).innerHTML=`
+    <div class="score-box">
+      <div class="box-label">Weighted Score</div>
+      <div class="score-number" style="color:${accent}">${parseFloat(totalEarned.toFixed(2))}</div>
+      <div class="score-outof">out of ${total}</div>
+      ${skipped.length>0?`<div class="skipped-note">⚠ ${skipped.length} blank field(s) counted as 0</div>`:''}
+    </div>
+    <div class="score-box">
+      <div class="box-label">Percentage (Internal)</div>
+      <div class="ring-wrap">
+        <div class="ring-svg-box">
+          <svg viewBox="0 0 130 130" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="var(--border)" stroke-width="9"/>
+            <circle cx="${CX}" cy="${CY}" r="${R}" fill="none"
+              stroke="${accent}" stroke-width="9" stroke-linecap="round"
+              stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${offset}"
+              transform="rotate(-90 ${CX} ${CY})"/>
+            <text x="${CX}" y="${CY-4}" text-anchor="middle" dominant-baseline="middle"
+              font-family="Syne,sans-serif" font-weight="800" font-size="18" fill="${accent}">${pct}</text>
+            <text x="${CX}" y="${CY+14}" text-anchor="middle" dominant-baseline="middle"
+              font-family="DM Mono,monospace" font-size="10" fill="var(--muted)">%</text>
+          </svg>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('table-'+type).innerHTML=`
+    <thead><tr><th>Component</th><th>You / Max</th><th>Weighted</th><th>Earned</th></tr></thead>
+    <tbody>
+      ${rows.map(r=>`<tr>
+        <td class="td-name">${r.name}</td>
+        <td>${r.skipped?'<span style="color:var(--muted)">—</span>':`${r.entered}/${r.max}`}</td>
+        <td>${r.weighted}</td>
+        <td class="td-earned">${r.skipped?'0.00':r.earned}</td>
+      </tr>`).join('')}
+      <tr class="total-row"><td colspan="3">TOTAL INTERNAL</td>
+        <td class="td-earned" style="color:${accent}">${parseFloat(totalEarned.toFixed(2))} / ${total}</td></tr>
+    </tbody>`;
+
+  const endInfo=type==='theory'?THEORY_END:type==='practical'?PRACTICAL_END:HYBRID_END;
+  renderEndTerm(type,endInfo,accent);
+
+  const panel=document.getElementById('result-'+type);
+  panel.classList.add('visible');
+  setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'start'}),100);
+}
+
+// ─────────────────────────────────────────────
+//  END TERM
+// ─────────────────────────────────────────────
+function renderEndTerm(type,endInfo,accent){
+  document.getElementById('endterm-'+type).innerHTML=`
+    <div class="end-term-header">
+      <span class="end-term-badge">Optional</span>
+      <span class="end-term-label">Add End Term → Total out of 100</span>
+    </div>
+    <p class="end-term-note">
+      Enter tentative <strong>${endInfo.label}</strong> marks out of <strong>${endInfo.max}</strong>
+      (weighted: <strong>${endInfo.weighted}</strong>) to estimate your total score.
+    </p>
+    <div class="end-term-row">
+      <div class="end-inp-wrap">
+        <span class="end-inp-label">${endInfo.label}:</span>
+        <input class="end-inp" type="number" id="end-inp-${type}" min="0" max="${endInfo.max}" step="0.5" placeholder="0">
+        <span class="out-of">/ ${endInfo.max}</span>
+      </div>
+      <button class="end-calc-btn" onclick="calcEnd('${type}',${endInfo.max},${endInfo.weighted})">Calculate Total</button>
+    </div>
+    <div class="end-result" id="end-result-${type}"></div>`;
+}
+
+function calcEnd(type,endMax,endWeighted){
+  const inp=document.getElementById('end-inp-'+type);
+  const val=parseFloat(inp.value);
+  const internal=storedInternal[type];
+  if(internal===null)return;
+  if(isNaN(val)||val<0||val>endMax){inp.style.borderColor='var(--accent-red)';alert(`Enter a value between 0 and ${endMax}`);return;}
+  inp.style.borderColor='';
+  const internalMax=type==='theory'?THEORY_TOTAL:type==='practical'?PRACTICAL_TOTAL:HYBRID_TOTAL;
+  const endEarned=(val/endMax)*endWeighted;
+  const grand=internal+endEarned;
+  const grandMax=internalMax+endWeighted;
+  const grandPct=((grand/grandMax)*100).toFixed(1);
+  const grade=getGrade(parseFloat(grandPct));
+  const accent=accentFor(type);
+  document.getElementById('end-result-'+type).innerHTML=`
+    <div class="end-result-grid">
+      <div><div class="end-stat-label">Internal</div>
+        <div class="end-stat-val" style="color:${accent}">${internal}</div>
+        <div class="end-stat-sub">/ ${internalMax}</div></div>
+      <div><div class="end-stat-label">End Term (Wtd)</div>
+        <div class="end-stat-val" style="color:var(--accent-purple)">${endEarned.toFixed(2)}</div>
+        <div class="end-stat-sub">/ ${endWeighted}</div></div>
+      <div><div class="end-stat-label">Grand Total</div>
+        <div class="end-stat-val" style="color:var(--accent-yellow)">${grand.toFixed(2)}</div>
+        <div class="end-stat-sub">/ ${grandMax} · ${grandPct}%</div></div>
+    </div>
+    <div class="grade-big" style="color:${grade.color}">Grade: ${grade.label}</div>
+    <div class="predicted-note">⚠️ <strong>Disclaimer:</strong> This is a predicted grade based on your entered marks and may not reflect your actual result. Final grades are determined by the university.</div>`;
+  document.getElementById('end-result-'+type).classList.add('visible');
+}
+
+// ─────────────────────────────────────────────
+//  RESET
+// ─────────────────────────────────────────────
+function resetForm(type){
+  const components=type==='theory'?THEORY_COMPONENTS:type==='practical'?[...PRACTICAL_EXPERIMENTS,...PRACTICAL_OTHER]:[...HYBRID_MAIN,...HYBRID_WORKSHEETS];
+  components.forEach(c=>{
+    const inp=document.getElementById('inp-'+c.id);
+    const prev=document.getElementById('prev-'+c.id);
+    if(inp){inp.value='';inp.classList.remove('error','auto-filled');}
+    if(prev){prev.textContent='— pts';prev.classList.remove('has-val');}
+    removeAutoTag(c.id);
+  });
+  storedInternal[type]=null;
+  document.getElementById('result-'+type).classList.remove('visible');
+  document.getElementById(`ocr-summary-${type}`).classList.remove('visible');
+  document.getElementById(`ocr-status-${type}`).classList.remove('visible');
+}
+
+// ─────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────
+function accentFor(t){return t==='theory'?'var(--accent-blue)':t==='practical'?'var(--accent-green)':'var(--accent-orange)';}
+
+function getGrade(pct){
+  if(pct>=95.5)return{label:'A+',color:'#06d6a0'};
+  if(pct>=88)  return{label:'A', color:'#4cc9f0'};
+  if(pct>=82.5)return{label:'B+',color:'#ffd166'};
+  if(pct>=76)  return{label:'B', color:'#ff6b2b'};
+  if(pct>=72)  return{label:'C+',color:'#c77dff'};
+  if(pct>=68)  return{label:'C', color:'#9999bb'};
+  return{label:'D',color:'#e02020'};
+}
+</script>
+</body>
+</html>
